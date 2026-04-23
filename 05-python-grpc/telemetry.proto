@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package telemetry;
+
+service TelemetryService {
+  // Einzelnen Messwert senden (Unary RPC)
+  rpc SendReading (TelemetryReading) returns (Ack);
+
+  // Live-Stream aller Messwerte empfangen (Server-Streaming RPC)
+  rpc StreamReadings (StreamRequest) returns (stream TelemetryReading);
+}
+
+message TelemetryReading {
+  string vehicle_id = 1;
+  string sensor     = 2;
+  float  value      = 3;
+  string unit       = 4;
+  string timestamp  = 5;
+}
+
+message StreamRequest {
+  string vehicle_id = 1;  // leer = alle Fahrzeuge
+}
+
+message Ack {
+  bool   ok = 1;
+  string id = 2;
+}

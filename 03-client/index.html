@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Telemetry Dashboard</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
+    th { background: #f4f4f4; }
+    form { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+    input { padding: 0.4rem; border: 1px solid #ccc; border-radius: 4px; }
+    button { padding: 0.4rem 0.8rem; cursor: pointer; }
+    #status { font-size: 0.85rem; color: #555; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+
+<h1>Telemetry Dashboard</h1>
+
+<form id="send-form">
+  <input name="vehicle_id" placeholder="vehicle_id" value="VH-001" required>
+  <input name="sensor"     placeholder="sensor"     value="engine_temp" required>
+  <input name="value"      placeholder="value"      value="87.3" type="number" step="any" required>
+  <input name="unit"       placeholder="unit (opt)" value="°C">
+  <button type="submit">Senden</button>
+  <button type="button" id="simulate-btn">Simulation starten</button>
+</form>
+<div id="status"></div>
+
+<table>
+  <thead><tr><th>Zeit</th><th>Fahrzeug</th><th>Sensor</th><th>Wert</th><th>Einheit</th></tr></thead>
+  <tbody id="table-body"></tbody>
+</table>
+
+<script>
+  const API = "http://localhost:8000";
+  let simulationTimer = null;
+
+  async function loadEntries() {
+    try {
+      const resp = await fetch(`${API}/telemetry`);
+      const entries = await resp.json();
+      const tbody = document.getElementById("table-body");
+      tbody.innerHTML = entries.map(e => `
+        <tr>
+          <td>${new Date(e.timestamp).toLocaleTimeString()}</td>
+          <td>${e.vehicle_id}</td>
+          <td>${e.sensor}</td>
+          <td>${e.value}</td>
+          <td>${e.unit ?? ""}</td>
+        </tr>
+      `).join("");
+    } catch (err) {
+      setStatus("API nicht erreichbar: " + err.message);
+    }
+  }
+
+  async function sendEntry(data) {
+    const resp = await fetch(`${API}/telemetry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return resp.json();
+  }
+
+  document.getElementById("send-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    await sendEntry({
+      vehicle_id: f.vehicle_id.value,
+      sensor:     f.sensor.value,
+      value:      parseFloat(f.value.value),
+      unit:       f.unit.value || undefined,
+    });
+    setStatus("Gesendet.");
+    loadEntries();
+  });
+
+  document.getElementById("simulate-btn").addEventListener("click", () => {
+    if (simulationTimer) {
+      clearInterval(simulationTimer);
+      simulationTimer = null;
+      document.getElementById("simulate-btn").textContent = "Simulation starten";
+      setStatus("Simulation gestoppt.");
+      return;
+    }
+    document.getElementById("simulate-btn").textContent = "Simulation stoppen";
+    simulationTimer = setInterval(async () => {
+      const sensors = [
+        { sensor: "engine_temp",     unit: "°C",   base: 85,  range: 10 },
+        { sensor: "speed",           unit: "km/h", base: 100, range: 40 },
+        { sensor: "battery_voltage", unit: "V",    base: 12,  range: 1  },
+      ];
+      const s = sensors[Math.floor(Math.random() * sensors.length)];
+      await sendEntry({
+        vehicle_id: "VH-SIM",
+        sensor: s.sensor,
+        value: Math.round((s.base + Math.random() * s.range) * 10) / 10,
+        unit: s.unit,
+      });
+      loadEntries();
+      setStatus("Simulierter Wert gesendet: " + new Date().toLocaleTimeString());
+    }, 2000);
+  });
+
+  function setStatus(msg) {
+    document.getElementById("status").textContent = msg;
+  }
+
+  loadEntries();
+  setInterval(loadEntries, 5000);
+</script>
+
+</body>
+</html>

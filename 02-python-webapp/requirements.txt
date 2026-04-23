@@ -1,0 +1,6 @@
+flask>=3.0
+flask-cors>=4.0
+
+# Phase 3 (Cloud SQL):
+# cloud-sql-python-connector[pg8000]
+# sqlalchemy
